@@ -1,0 +1,9 @@
+# Phase 1 (this pass): backbone architecture only.
+torch>=2.2
+
+# Phase 2+ (data pipeline, not yet wired up): quantum error simulation.
+stim>=1.13
+numpy>=1.24
+
+# Testing
+pytest>=7.0
