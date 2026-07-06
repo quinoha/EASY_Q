@@ -1,0 +1,6 @@
+# Requirements for Cascade structure
+
+stim>=1.12
+sinter>=1.12
+pymatching>=2.1
+matplotlib
