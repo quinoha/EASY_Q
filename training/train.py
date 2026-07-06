@@ -6,13 +6,11 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
-# Add parent directory to path to allow importing the Cascade model
-sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add the Cascade directory directly to path so we can import `cascade`
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Cascade"))
 
-# Attempt to import the SurfaceCascade model from the Cascade directory.
-# Adjust the import path if the actual folder structure is slightly different.
 try:
-    from Cascade.cascade.model.surface_cascade import SurfaceCascade
+    from cascade.model.surface_cascade import SurfaceCascade
 except ImportError as e:
     print(f"Warning: Could not import SurfaceCascade. Please check the path. ({e})")
     SurfaceCascade = None
