@@ -28,6 +28,7 @@ def draw_and_save_plot(stats: List[sinter.TaskStats], save_path: str = None):
     distances = sorted(list(set([stat.json_metadata['d'] for stat in stats])))
     ax.legend([f"Distance {d}" for d in distances])
     
+    
     plt.tight_layout()
     if save_path:
         plt.savefig(save_path)

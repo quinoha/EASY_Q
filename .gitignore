@@ -4,3 +4,7 @@
 # pycache
 **/__pycache__/
 *.pyc
+
+# dataset
+.datasets/
+*.npz

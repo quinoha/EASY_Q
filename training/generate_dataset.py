@@ -44,7 +44,12 @@ if __name__ == "__main__":
     DATASET_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "datasets")
     
     # Target distances to generate
-    target_distances = [5, 7, 9]
+    """
+    =================== settings ===================
+    d = 3, 5, 7, 9, 11
+    p = 0.01 (error rate)
+    """
+    target_distances = [3, 5, 7, 9, 11]
     
     # Physical error rate for training (usually around the threshold ~1%, 
     # or a mix of multiple rates. Here we use a single value 0.01 as an example)
