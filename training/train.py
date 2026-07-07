@@ -6,8 +6,10 @@ import torch.nn as nn
 import torch.optim as optim
 from torch.utils.data import Dataset, DataLoader
 
-# Add parent directory to path to allow importing the Cascade model and circuits
+# Add parent directory to path to allow importing the circuits
 sys.path.append(os.path.dirname(os.path.dirname(os.path.abspath(__file__))))
+# Add the Cascade directory directly to path to allow importing 'cascade'
+sys.path.append(os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "Cascade"))
 
 try:
     from cascade.model.surface_cascade import SurfaceCascade
@@ -28,6 +30,9 @@ def get_stim_to_grid_mapping(distance: int, p_rate: float):
     Extracts detector coordinates from the stim circuit and creates a mapping
     from the flat 1D detector array to the 3D (T, H, W) grid expected by Cascade.
     """
+    # for checking tensor locations (from cuda or cpu?)
+    
+    
     circuit = generate_surface_code_circuit(distance, p_rate)
     coords = circuit.get_detector_coordinates()
     
@@ -92,9 +97,16 @@ def train_model(distance: int, p_rate: float, epochs: int = 50, batch_size: int 
     mapping, (T, H, W) = get_stim_to_grid_mapping(distance, p_rate)
     mapping = mapping.to(device)
     
-    ancilla_mask = checkerboard_ancilla_mask(distance).to(device)
-    data_qubit_mask = synthetic_data_qubit_mask(distance, ancilla_mask).to(device)
-    logical_masks = synthetic_logical_masks(distance, data_qubit_mask).to(device)
+    # Create masks on CPU first to avoid device mismatch inside geometry functions
+    ancilla_mask = checkerboard_ancilla_mask(distance)
+    data_qubit_mask = synthetic_data_qubit_mask(distance, ancilla_mask)
+    logical_masks = synthetic_logical_masks(distance, data_qubit_mask)
+    
+    # --- IMPORTANT FIX ---
+    # The synthetic_logical_masks creates 2 logical masks (for X and Z).
+    # However, our stim circuit (rotated_memory_z) only outputs 1 logical observable.
+    # We slice it to keep only 1 mask, so the model outputs shape (Batch, 1) matching targets.
+    logical_masks = logical_masks[0:1]
 
     # 2. Initialize Model
     model = SurfaceCascade(
@@ -105,6 +117,9 @@ def train_model(distance: int, p_rate: float, epochs: int = 50, batch_size: int 
         data_qubit_mask=data_qubit_mask,
         logical_masks=logical_masks,
     ).to(device)
+
+    # Send ancilla mask to device for the training loop
+    ancilla_mask = ancilla_mask.to(device)
 
     criterion = nn.BCEWithLogitsLoss()
     optimizer = optim.Adam(model.parameters(), lr=lr)
