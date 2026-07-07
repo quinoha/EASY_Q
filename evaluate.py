@@ -112,7 +112,10 @@ class CascadeSinterDecoder(sinter.Decoder):
         stim.write_shot_data_file(
             data=all_predictions,
             path=str(obs_predictions_b8_out_path),
-            format="b8"
+            format="b8",
+            num_measurements=0,
+            num_detectors=0,
+            num_observables=num_obs
         )
 
 
