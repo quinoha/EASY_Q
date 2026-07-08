@@ -129,11 +129,11 @@ def train_model(distance: int, p_rate: float, epochs: int = 50, batch_size: int 
 
     # 3. Training Loop
     print("Starting training...")
-    for epoch in tqdm(range(epochs)):
+    for epoch in range(epochs):
         model.train()
         running_loss = 0.0
         
-        for inputs, targets in dataloader:
+        for inputs, targets in tqdm(dataloader):
             inputs, targets = inputs.to(device), targets.to(device)
             
             # --- The Reshape Magic ---
@@ -176,7 +176,7 @@ def train_model(distance: int, p_rate: float, epochs: int = 50, batch_size: int 
     print(f"Training complete! Model saved to {save_path}")
 
 if __name__ == "__main__":
-    TARGET_DISTANCE = 9
+    TARGET_DISTANCE = 11
     TARGET_P = 0.01
     
     # Using smaller batch for initial testing, bump back to 1024 for full GPU power
