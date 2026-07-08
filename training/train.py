@@ -1,9 +1,12 @@
 import os
 import sys
 import numpy as np
+
 import torch
 import torch.nn as nn
 import torch.optim as optim
+
+from tqdm import tqdm
 from torch.utils.data import Dataset, DataLoader
 
 # Add parent directory to path to allow importing the circuits
@@ -126,7 +129,7 @@ def train_model(distance: int, p_rate: float, epochs: int = 50, batch_size: int 
 
     # 3. Training Loop
     print("Starting training...")
-    for epoch in range(epochs):
+    for epoch in tqdm(range(epochs)):
         model.train()
         running_loss = 0.0
         
@@ -173,7 +176,7 @@ def train_model(distance: int, p_rate: float, epochs: int = 50, batch_size: int 
     print(f"Training complete! Model saved to {save_path}")
 
 if __name__ == "__main__":
-    TARGET_DISTANCE = 5
+    TARGET_DISTANCE = 9
     TARGET_P = 0.01
     
     # Using smaller batch for initial testing, bump back to 1024 for full GPU power

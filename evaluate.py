@@ -2,6 +2,7 @@ import os
 import sys
 import torch
 import numpy as np
+
 import stim
 import sinter
 import multiprocessing
@@ -120,7 +121,7 @@ class CascadeSinterDecoder(sinter.Decoder):
 
 
 def evaluate_model():
-    target_distance = 5
+    target_distance = 9
     model_path = f"checkpoints/cascade_d{target_distance}.pth"
     
     if not os.path.exists(model_path):
@@ -132,7 +133,29 @@ def evaluate_model():
     
     # 2. Define simulation tasks
     # For a fair evaluation, we test on unseen data at various error rates
-    p_rates = [1e-1, 5e-2, 2e-2, 1e-2, 5e-3, 2e-3]
+    '''
+    Different p rates 
+    
+    p_rates = [
+        1e-1,   # 0.1 
+        5e-2, 
+        2e-2, 
+        1e-2, 
+        5e-3, 
+        2e-3
+        ]
+    '''
+    p_rates = [
+        1e-2,   # 0.01
+        5e-3,   # 0.005
+        2e-3,   # 0.002
+        1e-3,   # 0.001
+        5e-4,   # 0.0005
+        2e-4,   # 0.0002
+        1e-4,   # 0.0001
+        
+    ]
+    
     tasks = []
     for p in p_rates:
         circuit = generate_surface_code_circuit(distance=target_distance, physical_error_rate=p)
