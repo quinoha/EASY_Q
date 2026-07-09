@@ -59,67 +59,6 @@ def get_stim_to_grid_mapping(distance: int, p_rate: float):
     return mapping, (T, H, W)
 
 
-def zeropower_via_newtonschulz5(G, steps=10, eps=1e-7):
-    """
-    Newton-Schulz iteration to compute the zeroth power / orthogonalization of G.
-    """
-    assert len(G.shape) == 2
-    a, b, c = (3.4445, -4.7750,  2.0315)
-    X = G.to(torch.float32)
-    X /= (X.norm() + eps)
-    if G.size(0) > G.size(1):
-        X = X.T
-    for _ in range(steps):
-        A = X @ X.T
-        B = b * A + c * A @ A
-        X = a * X + B @ X
-    if G.size(0) > G.size(1):
-        X = X.T
-    return X.to(G.dtype)
-
-
-class Muon(torch.optim.Optimizer):
-    """
-    Muon - MomentUm Orthogonalized by Newton-schulz
-    """
-    def __init__(self, params, lr=0.02, momentum=0.95, nesterov=True, ns_steps=5):
-        defaults = dict(lr=lr, momentum=momentum, nesterov=nesterov, ns_steps=ns_steps)
-        super().__init__(params, defaults)
-
-    def step(self):
-        for group in self.param_groups:
-            lr = group['lr']
-            momentum = group['momentum']
-            nesterov = group['nesterov']
-            ns_steps = group['ns_steps']
-            for p in group['params']:
-                if p.grad is None:
-                    continue
-                g = p.grad
-                if g.ndim < 2:
-                    continue
-                
-                # Flatten >2D params (like Conv3d weights) to 2D
-                g_2d = g.view(g.size(0), -1)
-                
-                state = self.state[p]
-                if 'momentum_buffer' not in state:
-                    state['momentum_buffer'] = torch.zeros_like(g_2d)
-                buf = state['momentum_buffer']
-                buf.mul_(momentum).add_(g_2d)
-                
-                if nesterov:
-                    g_2d = g_2d.add(buf, alpha=momentum)
-                else:
-                    g_2d = buf
-                
-                g_out = zeropower_via_newtonschulz5(g_2d, steps=ns_steps)
-                
-                # Scale by learning rate and aspect ratio
-                scale = lr * max(1, g_2d.size(0)/g_2d.size(1))**0.5
-                p.data.add_(g_out.view_as(p), alpha=-scale)
-
-
 def train_model(distance: int, p_rate: float, steps: int = 10000, batch_size: int = 1024, lr: float = 1e-3):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
@@ -161,19 +100,7 @@ def train_model(distance: int, p_rate: float, steps: int = 10000, batch_size: in
     ancilla_mask = ancilla_mask.to(device)
 
     criterion = nn.BCEWithLogitsLoss()
-    
-    # 2.5 Initialize Hybrid Optimizers (Muon for >=2D, AdamW for <2D)
-    muon_params = []
-    adamw_params = []
-    for p in model.parameters():
-        if p.requires_grad:
-            if p.ndim >= 2:
-                muon_params.append(p)
-            else:
-                adamw_params.append(p)
-                
-    optimizer_muon = Muon(muon_params, lr=lr * 10)  # Muon typically uses larger LR
-    optimizer_adamw = optim.AdamW(adamw_params, lr=lr)
+    optimizer = optim.Adam(model.parameters(), lr=lr)
 
     # 3. Training Loop
     print("Starting training...")
@@ -202,8 +129,7 @@ def train_model(distance: int, p_rate: float, steps: int = 10000, batch_size: in
         # 3. Convert boolean detections to the {0,1,2} embedding vocab expected by Cascade
         syndrome_idx = syndrome_indices_from_detections(detections, ancilla_mask)
         
-        optimizer_muon.zero_grad()
-        optimizer_adamw.zero_grad()
+        optimizer.zero_grad()
         
         # Forward pass expects syndrome_idx
         outputs = model(syndrome_idx)
@@ -213,8 +139,7 @@ def train_model(distance: int, p_rate: float, steps: int = 10000, batch_size: in
         loss = criterion(outputs, targets)
         
         loss.backward()
-        optimizer_muon.step()
-        optimizer_adamw.step()
+        optimizer.step()
         
         running_loss += loss.item()
         
