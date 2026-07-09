@@ -169,7 +169,7 @@ def evaluate_model():
     print(f"Starting Sinter evaluation using PyTorch Cascade Decoder...")
     
     # 3. Run Sinter Collect with our custom decoder
-    stats = sinter.collect(
+    stats_cascade = sinter.collect(
         num_workers=1, # Neural network batching is done internally, so 1 worker is safer for GPU memory
         tasks=tasks,
         decoders=['my_cascade'],
@@ -179,10 +179,18 @@ def evaluate_model():
         print_progress=True
     )
     
+    stats_pymatching = sinter.collect(
+        num_workers=1,
+        tasks=tasks,
+        decoders=['pymatching'],
+        max_shots=100_000,
+        max_errors=1000,
+        print_progress=True
+    )
     
     # 4. Draw and save plot
     os.makedirs("plotting/output", exist_ok=True)
-    draw_and_save_plot(stats, save_path=f"plotting/output/cascade_evaluation_d{target_distance}.png")
+    draw_and_save_plot(stats_cascade, save_path=f"plotting/output/cascade_evaluation_d{target_distance}.png")
 
 if __name__ == "__main__":
     evaluate_model()
