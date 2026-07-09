@@ -121,7 +121,7 @@ class CascadeSinterDecoder(sinter.Decoder):
 
 
 def evaluate_model():
-    target_distance = 9
+    target_distance = 7
     model_path = f"checkpoints/cascade_d{target_distance}.pth"
     
     if not os.path.exists(model_path):
