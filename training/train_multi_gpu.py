@@ -162,6 +162,12 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
         logical_masks=logical_masks,
     ).to(device)
 
+    # --- Multi-GPU Setup ---
+    if torch.cuda.device_count() > 1:
+        print(f"Using {torch.cuda.device_count()} GPUs!")
+        model = nn.DataParallel(model)
+    # -----------------------
+
     # Send ancilla mask to device for the training loop
     ancilla_mask = ancilla_mask.to(device)
 
@@ -259,7 +265,10 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     checkpoint_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
     save_path = os.path.join(checkpoint_dir, f"cascade_d{distance}.pth")
-    torch.save(model.state_dict(), save_path)
+    
+    # Extract original model from DataParallel wrapper if necessary
+    model_state = model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict()
+    torch.save(model_state, save_path)
     print(f"Training complete! Model saved to {save_path}")
     
     
