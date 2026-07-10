@@ -256,8 +256,9 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
         if (step + 1) % 100 == 0:
             avg_loss = running_loss / 100
             avg_acc = running_acc / 100
-            tqdm.write(f"Step [{step+1}/{total_steps}] - p: {current_p:.5f} - Loss: {avg_loss:.6f} - Acc: {avg_acc}")
+            tqdm.write(f"Step [{step+1}/{total_steps}] - p: {current_p:.5f} - Loss: {avg_loss:.6f} - Acc: {avg_acc:.4f}")
             running_loss = 0.0
+            running_acc = 0.0
             arr_loss.append(avg_loss)   
         
         
