@@ -1,6 +1,7 @@
 import os
 import sys
 import numpy as np
+import matplotlib.pyplot as plt
 
 import torch
 import torch.nn as nn
@@ -86,7 +87,11 @@ class Muon(torch.optim.Optimizer):
         defaults = dict(lr=lr, momentum=momentum, nesterov=nesterov, ns_steps=ns_steps)
         super().__init__(params, defaults)
 
-    def step(self):
+    def step(self, closure=None):
+        loss = None
+        if closure is not None:
+            loss = closure()
+            
         for group in self.param_groups:
             lr = group['lr']
             momentum = group['momentum']
@@ -120,7 +125,7 @@ class Muon(torch.optim.Optimizer):
                 p.data.add_(g_out.view_as(p), alpha=-scale)
 
 
-def train_model(distance: int, p_rate: float, steps: int = 10000, batch_size: int = 1024, lr: float = 1e-3):
+def train_model(distance: int, p_start: float, p_target: float, total_steps: int = 80000, batch_size: int = 3328, lr: float = 1e-3):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
     print(f"Using device: {device}")
 
@@ -129,11 +134,11 @@ def train_model(distance: int, p_rate: float, steps: int = 10000, batch_size: in
         return
 
     # 1. Prepare Geometry and Mapping
-    mapping, (T, H, W) = get_stim_to_grid_mapping(distance, p_rate)
+    mapping, (T, H, W) = get_stim_to_grid_mapping(distance, p_target)
     mapping = mapping.to(device)
     
     # Prepare sampler for on-the-fly data generation
-    circuit = generate_surface_code_circuit(distance, p_rate)
+    circuit = generate_surface_code_circuit(distance, p_start)
     sampler = circuit.compile_detector_sampler()
     
     # Create masks on CPU first to avoid device mismatch inside geometry functions
@@ -179,8 +184,20 @@ def train_model(distance: int, p_rate: float, steps: int = 10000, batch_size: in
     print("Starting training...")
     model.train()
     running_loss = 0.0
+    arr_loss = []
     
-    for step in tqdm(range(steps)):
+    warmup_steps = int(total_steps * 0.02)
+    current_p = p_start
+    
+    for step in tqdm(range(total_steps)):
+        # Curriculum Learning: Update p_rate and recompile sampler if needed
+        if step <= warmup_steps:
+            new_p = p_start + (p_target - p_start) * (step / max(1, warmup_steps))
+            if new_p != current_p or step == 0:
+                current_p = new_p
+                circuit = generate_surface_code_circuit(distance, current_p)
+                sampler = circuit.compile_detector_sampler()
+                
         # Generate data on-the-fly
         detectors, observables = sampler.sample(shots=batch_size, separate_observables=True)
         inputs = torch.from_numpy(detectors.astype(np.float32)).to(device)
@@ -220,18 +237,45 @@ def train_model(distance: int, p_rate: float, steps: int = 10000, batch_size: in
         
         if (step + 1) % 100 == 0:
             avg_loss = running_loss / 100
-            tqdm.write(f"Step [{step+1}/{steps}] - Loss: {avg_loss:.6f}")
+            tqdm.write(f"Step [{step+1}/{total_steps}] - p: {current_p:.5f} - Loss: {avg_loss:.6f}")
             running_loss = 0.0
-
+            arr_loss.append(avg_loss)   
+        
+        
+    # ================== Saving trained model ==================
     checkpoint_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
     save_path = os.path.join(checkpoint_dir, f"cascade_d{distance}.pth")
     torch.save(model.state_dict(), save_path)
     print(f"Training complete! Model saved to {save_path}")
+    
+    # ================== Plotting loss ==================
+    
+    plot_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "plots")
+    fig, ax = plt.subplots(figsize=(8, 6))
+    '''
+    for i in range(total_steps//100):
+        plt.plot(i, arr_loss[i], )
+    '''
+    x_steps = [i * 100 for i in range(len(arr_loss))]
+    ax.plot(x_steps, arr_loss, label="avg loss", marker="o", markersize=3)
+    
+    ax.set_title(f"Loss vs steps")
+    ax.set_xlabel("Iterations")
+    ax.set_ylabel("BCE Loss logits")
+    ax.grid(True, which="both", linestyle='--', alpha=0.7)
+    
+    ax.legend()
+    plot_path = os.path.join(plot_dir, f"loss_plot_d{distance}.png")
+    plt.savefig(plot_path)
+    print(f"plot saved to {plot_path}")
+    
+    plt.show()
 
 if __name__ == "__main__":
     TARGET_DISTANCE = 7
-    TARGET_P = 0.01
+    P_START = 0.001
+    P_TARGET = 0.01
     
-    # Using smaller batch for initial testing, bump back to 1024 for full GPU power
-    train_model(distance=TARGET_DISTANCE, p_rate=TARGET_P, steps=10000, batch_size=512)
+    # Curriculum learning with batch size 3328
+    train_model(distance=TARGET_DISTANCE, p_start=P_START, p_target=P_TARGET, total_steps=80000, batch_size=3328)
