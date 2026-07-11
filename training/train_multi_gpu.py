@@ -194,16 +194,22 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     arr_loss = []
     
     warmup_steps = int(total_steps * 0.02)
+    anneal_steps = int(total_steps * 0.08)
     current_p = p_start
     
     for step in tqdm(range(total_steps)):
         # Curriculum Learning: Update p_rate and recompile sampler if needed
         if step <= warmup_steps:
-            new_p = p_start + (p_target - p_start) * (step / max(1, warmup_steps))
-            if new_p != current_p or step == 0:
-                current_p = new_p
-                circuit = generate_surface_code_circuit(distance, current_p)
-                sampler = circuit.compile_detector_sampler()
+            new_p = p_start
+        elif step < warmup_steps + anneal_steps:
+            progress = (step - warmup_steps) / anneal_steps
+            new_p = p_start + (p_target - p_start) * progress
+        else:
+            new_p = p_target
+        if new_p != current_p or step == 0:
+            current_p = new_p
+            circuit = generate_surface_code_circuit(distance, current_p)
+            sampler = circuit.compile_detector_sampler()
                 
         # Generate data on-the-fly
         detectors, observables = sampler.sample(shots=batch_size, separate_observables=True)
