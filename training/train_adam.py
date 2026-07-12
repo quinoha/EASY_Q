@@ -84,7 +84,8 @@ def train_model(distance: int, p_rate: float, steps: int = 10000, batch_size: in
     # The synthetic_logical_masks creates 2 logical masks (for X and Z).
     # However, our stim circuit (rotated_memory_z) only outputs 1 logical observable.
     # We slice it to keep only 1 mask, so the model outputs shape (Batch, 1) matching targets.
-    logical_masks = logical_masks[0:1]
+    # rotated_memory_z corresponds to the Z logical operator, which is a column mask (index 1)
+    logical_masks = logical_masks[1:2]
 
     # 2. Initialize Model
     model = SurfaceCascade(
