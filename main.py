@@ -14,7 +14,7 @@ def main():
         circuit_generator=generate_surface_code_circuit,
         distances=distances,
         physical_error_rates=p_rates,
-        max_shots=1000, # Reduced max_shots for faster testing. Increase it for more accurate graphs.
+        max_shots=1_000_000, # Increased max_shots to capture rare errors at low physical error rates
         max_errors=100
     )
     
