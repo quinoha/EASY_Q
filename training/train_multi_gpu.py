@@ -1,4 +1,6 @@
 import os
+# --- Specify GPUs to use ---
+os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -310,7 +312,7 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     plt.show()
 
 if __name__ == "__main__":
-    TARGET_DISTANCE = 7
+    TARGET_DISTANCE = 11
     P_START = 0.001
     P_TARGET = 0.01
     
