@@ -45,7 +45,7 @@ class CascadeSinterDecoder(sinter.Decoder):
         self.model = SurfaceCascade(
             distance=distance,
             rounds=self.T,
-            hidden_dim=32,
+            hidden_dim=128, # Updated to 128 to match train_multi_gpu.py
             depth=distance,
             data_qubit_mask=data_qubit_mask,
             logical_masks=logical_masks,
@@ -174,7 +174,7 @@ def evaluate_model():
         tasks=tasks,
         decoders=['my_cascade'],
         custom_decoders={'my_cascade': my_decoder},
-        max_shots=100_000,
+        max_shots=1_000_000,
         max_errors=1000,
         print_progress=True
     )
