@@ -154,10 +154,11 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     logical_masks = logical_masks[1:2]
 
     # 2. Initialize Model
+    hidden_dim = 128
     model = SurfaceCascade(
         distance=distance,
         rounds=T,          # Model expects rounds to match the temporal dimension of our grid
-        hidden_dim=32,     # Adjust model capacity as needed
+        hidden_dim=hidden_dim,     # Adjust model capacity as needed
         depth=distance,    # Following the L ~ d heuristic from the paper
         data_qubit_mask=data_qubit_mask,
         logical_masks=logical_masks,
@@ -178,8 +179,13 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
             else:
                 adamw_params.append(p)
                 
-    optimizer_muon = Muon(muon_params, lr=lr * 10)  # Muon typically uses larger LR
-    optimizer_adamw = optim.AdamW(adamw_params, lr=lr)
+    # --- MuP Learning Rate Scaling ---
+    base_dim = 32
+    width_ratio = base_dim / hidden_dim
+    
+    optimizer_muon = Muon(muon_params, lr=lr * 10)  # Muon inherently scales by aspect ratio
+    optimizer_adamw = optim.AdamW(adamw_params, lr=lr * width_ratio)
+    # ---------------------------------
 
     # 3. Training Loop
     print("Starting training...")

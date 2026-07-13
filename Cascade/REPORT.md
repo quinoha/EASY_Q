@@ -101,10 +101,13 @@ Summarized from Methods, for when a training loop is built:
   optimizers themselves. Reference implementations: Keller Jordan's public Muon writeup,
   and the Lion paper's reference PyTorch snippet.
 - **MuP** (Maximal Update Parameterization): rescales init and per-layer LR as a function
-  of width `H` so one set of hyperparameters works across `(H, L)` configs. This affects
-  module *construction* (init std) and the optimizer's per-parameter-group LR, not the
-  forward-pass code already built — implement as a thin wrapper that reads
-  `(hidden_dim, depth)` off `SurfaceCascade`/its future BB counterpart.
+  of width `H` so one set of hyperparameters works across `(H, L)` configs. In this
+  repository, a **manual MuP scaling** has been implemented to avoid conflicts with
+  custom optimizers like Muon. Specifically:
+  1. **Logit Scaling**: The output of the final layer in `Readout` (`readout.py`) is scaled
+     down by `base_dim / hidden_dim` (assuming `base_dim = 32`).
+  2. **LR Scaling**: The `AdamW` optimizer's learning rate in the training scripts is scaled
+     by `base_dim / hidden_dim` to maintain stability when scaling up the model width.
 - **EMA**: maintain an exponential moving average of weights (`decay=0.9998`); report
   metrics using EMA weights only.
 

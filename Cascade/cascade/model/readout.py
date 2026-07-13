@@ -92,4 +92,8 @@ class Readout(nn.Module):
 
         pooled = torch.einsum("kq,bqc->bkc", self.logical_pool_weights, qubit_feats)  # (B, K, C)
         logits = self.head(pooled).squeeze(-1)  # (B, K)
-        return logits
+        
+        # --- MuP Scaling ---
+        # Scale down logits proportionally to hidden_dim growth. Base width is assumed to be 32.
+        mup_scale = 32.0 / self.head[0].in_features
+        return logits * mup_scale
