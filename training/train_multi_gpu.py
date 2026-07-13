@@ -1,6 +1,7 @@
 import os
 # --- Specify GPUs to use ---
 os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+import copy
 import sys
 import numpy as np
 import matplotlib.pyplot as plt
@@ -85,8 +86,8 @@ class Muon(torch.optim.Optimizer):
     """
     Muon - MomentUm Orthogonalized by Newton-schulz
     """
-    def __init__(self, params, lr=0.02, momentum=0.95, nesterov=True, ns_steps=5):
-        defaults = dict(lr=lr, momentum=momentum, nesterov=nesterov, ns_steps=ns_steps)
+    def __init__(self, params, lr=0.02, momentum=0.95, nesterov=True, ns_steps=5, weight_decay=0.0):
+        defaults = dict(lr=lr, momentum=momentum, nesterov=nesterov, ns_steps=ns_steps, weight_decay=weight_decay)
         super().__init__(params, defaults)
 
     def step(self, closure=None):
@@ -105,6 +106,10 @@ class Muon(torch.optim.Optimizer):
                 g = p.grad
                 if g.ndim < 2:
                     continue
+                
+                # Apply decoupled weight decay like AdamW
+                if group['weight_decay'] > 0.0:
+                    p.data.mul_(1.0 - lr * group['weight_decay'])
                 
                 # Flatten >2D params (like Conv3d weights) to 2D
                 g_2d = g.view(g.size(0), -1)
@@ -125,6 +130,25 @@ class Muon(torch.optim.Optimizer):
                 # Scale by learning rate and aspect ratio
                 scale = lr * max(1, g_2d.size(0)/g_2d.size(1))**0.5
                 p.data.add_(g_out.view_as(p), alpha=-scale)
+
+
+class EMA:
+    def __init__(self, model, decay=0.9998):
+        self.decay = decay
+        self.model = model
+        self.shadow = copy.deepcopy(self.model.state_dict())
+        for k, v in self.shadow.items():
+            self.shadow[k] = v.clone().detach()
+
+    @torch.no_grad()
+    def update(self):
+        state = self.model.state_dict()
+        for k, v in self.shadow.items():
+            if v.dtype.is_floating_point:
+                v.mul_(self.decay).add_(state[k], alpha=1.0 - self.decay)
+
+    def copy_to(self, model):
+        model.load_state_dict(self.shadow)
 
 
 def train_model(distance: int, p_start: float, p_target: float, total_steps: int = 80000, batch_size: int = 3328, lr: float = 1e-3):
@@ -191,13 +215,17 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     base_dim = 32
     width_ratio = base_dim / hidden_dim
     
-    optimizer_muon = Muon(muon_params, lr=lr * 10)  # Muon inherently scales by aspect ratio
-    optimizer_adamw = optim.AdamW(adamw_params, lr=lr * width_ratio)
+    optimizer_muon = Muon(muon_params, lr=lr * 10, weight_decay=3e-3)  # Muon inherently scales by aspect ratio
+    optimizer_adamw = optim.AdamW(adamw_params, lr=lr * width_ratio, weight_decay=3e-3)
     # ---------------------------------
 
     # 3. Training Loop
     print("Starting training...")
     model.train()
+    
+    # Initialize EMA (Exponential Moving Average)
+    ema = EMA(model, decay=0.9998)
+    
     running_loss = 0.0
     running_acc = 0.0
     arr_loss = []
@@ -255,6 +283,9 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
         optimizer_muon.step()
         optimizer_adamw.step()
         
+        # Update EMA parameters after optimizers
+        ema.update()
+        
         running_loss += loss.item()
         
         # Accuracy (Noah)
@@ -283,9 +314,12 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     save_path = os.path.join(checkpoint_dir, f"cascade_d{distance}.pth")
     
     # Extract original model from DataParallel wrapper if necessary
-    model_state = model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict()
+    # Apply EMA weights before saving (Paper: "report metrics using EMA weights only")
+    ema_model = copy.deepcopy(model)
+    ema.copy_to(ema_model)
+    model_state = ema_model.module.state_dict() if isinstance(ema_model, nn.DataParallel) else ema_model.state_dict()
     torch.save(model_state, save_path)
-    print(f"Training complete! Model saved to {save_path}")
+    print(f"Training complete! EMA Model saved to {save_path}")
     
     
     # ================== Plotting loss ==================
