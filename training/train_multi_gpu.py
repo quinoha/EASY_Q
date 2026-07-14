@@ -188,7 +188,7 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     logical_masks = logical_masks[1:2]
 
     # 2. Initialize Model
-    hidden_dim = 128
+    hidden_dim = 64
     model = SurfaceCascade(
         distance=distance,
         rounds=T,          # Model expects rounds to match the temporal dimension of our grid
@@ -323,7 +323,7 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     # ================== Saving trained model ==================
     checkpoint_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
-    save_path = os.path.join(checkpoint_dir, f"cascade_d{distance}.pth")
+    save_path = os.path.join(checkpoint_dir, f"cascade_d{distance}_H{hidden_dim}.pth")
     
     # Extract original model from DataParallel wrapper if necessary
     # Apply EMA weights before saving (Paper: "report metrics using EMA weights only")
@@ -351,7 +351,7 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     ax.grid(True, which="both", linestyle='--', alpha=0.7)
     
     ax.legend()
-    plot_path = os.path.join(plot_dir, f"loss_plot_d{distance}.png")
+    plot_path = os.path.join(plot_dir, f"loss_plot_d{distance}_H{hidden_dim}.png")
     plt.savefig(plot_path)
     print(f"plot saved to {plot_path}")
     
@@ -363,5 +363,5 @@ if __name__ == "__main__":
     P_TARGET = 0.01
     
     # Curriculum learning with batch size 3328
-    train_model(distance=TARGET_DISTANCE, p_start=P_START, p_target=P_TARGET, total_steps=80000, batch_size=3328)
+    train_model(distance=TARGET_DISTANCE, p_start=P_START, p_target=P_TARGET, total_steps=20000, batch_size=3328)
     
