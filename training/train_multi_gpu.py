@@ -136,19 +136,22 @@ class EMA:
     def __init__(self, model, decay=0.9998):
         self.decay = decay
         self.model = model
-        self.shadow = copy.deepcopy(self.model.state_dict())
-        for k, v in self.shadow.items():
-            self.shadow[k] = v.clone().detach()
+        self.shadow = {}
+        for name, p in self.model.named_parameters():
+            if p.requires_grad:
+                self.shadow[name] = p.data.clone().detach()
 
     @torch.no_grad()
     def update(self):
-        state = self.model.state_dict()
-        for k, v in self.shadow.items():
-            if v.dtype.is_floating_point:
-                v.mul_(self.decay).add_(state[k], alpha=1.0 - self.decay)
+        for name, p in self.model.named_parameters():
+            if p.requires_grad:
+                self.shadow[name].mul_(self.decay).add_(p.data, alpha=1.0 - self.decay)
 
     def copy_to(self, model):
-        model.load_state_dict(self.shadow)
+        state_dict = model.state_dict()
+        for name, p in self.shadow.items():
+            state_dict[name].copy_(p)
+        model.load_state_dict(state_dict)
 
 
 def train_model(distance: int, p_start: float, p_target: float, total_steps: int = 80000, batch_size: int = 3328, lr: float = 1e-3):
