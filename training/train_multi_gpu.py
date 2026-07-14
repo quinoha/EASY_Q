@@ -10,6 +10,7 @@ import torch
 import torch.nn as nn
 import torch.optim as optim
 
+import pymatching
 from tqdm import tqdm
 
 # Add parent directory to path to allow importing the circuits
@@ -236,7 +237,11 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     
     running_loss = 0.0
     running_acc = 0.0
+    running_pymatching_acc = 0.0
+    
     arr_loss = []
+    arr_model_acc = []
+    arr_pymatching_acc = []
     
     warmup_steps = int(total_steps * 0.02)
     anneal_steps = int(total_steps * 0.08)
@@ -255,11 +260,18 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
             current_p = new_p
             circuit = generate_surface_code_circuit(distance, current_p)
             sampler = circuit.compile_detector_sampler()
+            matching = pymatching.Matching.from_detector_error_model(circuit.detector_error_model())
                 
         # Generate data on-the-fly
         detectors, observables = sampler.sample(shots=batch_size, separate_observables=True)
         inputs = torch.from_numpy(detectors.astype(np.float32)).to(device)
         targets = torch.from_numpy(observables.astype(np.float32)).to(device)
+        
+        # --- Evaluate PyMatching on the same batch ---
+        predicted_observables = matching.decode_batch(detectors)
+        pymatching_corrects = (predicted_observables == observables).sum()
+        pymatching_acc = pymatching_corrects / (batch_size * observables.shape[1] if len(observables.shape) > 1 else batch_size)
+        running_pymatching_acc += pymatching_acc
         
         # --- The Reshape Magic ---
         # 1. Create empty 3D grid: (Batch, T, H, W)
@@ -314,10 +326,15 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
         if (step + 1) % 100 == 0:
             avg_loss = running_loss / 100
             avg_acc = running_acc / 100
-            tqdm.write(f"Step [{step+1}/{total_steps}] - p: {current_p:.5f} - Loss: {avg_loss:.6f} - Acc: {avg_acc:.4f}")
+            avg_pym_acc = running_pymatching_acc / 100
+            tqdm.write(f"Step [{step+1}/{total_steps}] - p: {current_p:.5f} - Loss: {avg_loss:.6f} - Acc: {avg_acc:.4f} - PyM: {avg_pym_acc:.4f}")
             running_loss = 0.0
             running_acc = 0.0
-            arr_loss.append(avg_loss)   
+            running_pymatching_acc = 0.0
+            
+            arr_loss.append(avg_loss)
+            arr_model_acc.append(avg_acc)
+            arr_pymatching_acc.append(avg_pym_acc)
         
         
     # ================== Saving trained model ==================
@@ -334,26 +351,27 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     print(f"Training complete! EMA Model saved to {save_path}")
     
     
-    # ================== Plotting loss ==================
+    # ================== Plotting Performance Comparison ==================
     plot_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "plots")
-    fig, ax = plt.subplots(figsize=(8, 6))
-    '''
-    Noah version: inefficient since plt will plot every iteration.
-    for i in range(total_steps//100):
-        plt.plot(i, arr_loss[i], )
-    '''
-    x_steps = [i * 100 for i in range(len(arr_loss))]
-    ax.plot(x_steps, arr_loss, label=f"d= {distance}", marker="o", markersize=3)
+    os.makedirs(plot_dir, exist_ok=True)
     
-    ax.set_title(f"Loss vs steps")
-    ax.set_xlabel("Iterations")
-    ax.set_ylabel("BCE Loss logits")
+    fig, ax = plt.subplots(figsize=(8, 6))
+    x_steps = [i * 100 for i in range(len(arr_model_acc))]
+    
+    # Plot Model Accuracy
+    ax.plot(x_steps, arr_model_acc, label="Cascade Model", marker="o", markersize=3, color='blue')
+    # Plot PyMatching Accuracy
+    ax.plot(x_steps, arr_pymatching_acc, label="PyMatching", marker="s", markersize=3, color='red', linestyle='--')
+    
+    ax.set_title(f"Performance Comparison: Cascade vs PyMatching (d={distance}, H={hidden_dim})")
+    ax.set_xlabel("Training Iterations")
+    ax.set_ylabel("Accuracy")
     ax.grid(True, which="both", linestyle='--', alpha=0.7)
     
     ax.legend()
-    plot_path = os.path.join(plot_dir, f"loss_plot_d{distance}_H{hidden_dim}.png")
+    plot_path = os.path.join(plot_dir, f"accuracy_comparison_d{distance}_H{hidden_dim}.png")
     plt.savefig(plot_path)
-    print(f"plot saved to {plot_path}")
+    print(f"Plot saved to {plot_path}")
     
     plt.show()
 
