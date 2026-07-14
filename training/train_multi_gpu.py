@@ -107,6 +107,11 @@ class Muon(torch.optim.Optimizer):
                 if g.ndim < 2:
                     continue
                 
+                # Safeguard against NaNs/Infs in gradients which cause CUBLAS to crash
+                if not torch.isfinite(g).all():
+                    print("Warning: NaN or Inf found in gradients. Skipping update for this parameter.")
+                    continue
+                
                 # Apply decoupled weight decay like AdamW
                 if group['weight_decay'] > 0.0:
                     p.data.mul_(1.0 - lr * group['weight_decay'])
@@ -283,6 +288,10 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
         loss = criterion(outputs, targets)
         
         loss.backward()
+        
+        # --- Gradient Clipping (Prevents NaNs and CUBLAS crashes) ---
+        torch.nn.utils.clip_grad_norm_(model.parameters(), max_norm=1.0)
+        
         optimizer_muon.step()
         optimizer_adamw.step()
         
