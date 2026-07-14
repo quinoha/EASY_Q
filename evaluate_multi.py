@@ -190,7 +190,8 @@ def evaluate_model():
     
     # 4. Draw and save plot
     os.makedirs("plotting/output", exist_ok=True)
-    draw_and_save_plot(stats_cascade, save_path=f"plotting/output/cascade_evaluation_d{target_distance}.png")
+    all_stats = stats_cascade + stats_pymatching
+    draw_and_save_plot(all_stats, save_path=f"plotting/output/cascade_evaluation_d{target_distance}.png")
 
 if __name__ == "__main__":
     evaluate_model()

@@ -12,8 +12,11 @@ def draw_and_save_plot(stats: List[sinter.TaskStats], save_path: str = None):
         ax=ax,
         stats=stats,
         x_func=lambda stat: stat.json_metadata['p'],
-        group_func=lambda stat: stat.json_metadata['d'],
-        plot_args_func=lambda index, group_key, group_stats: {'marker': 'o'}
+        group_func=lambda stat: f"d={stat.json_metadata['d']} ({stat.decoder})",
+        plot_args_func=lambda index, group_key, group_stats: {
+            'marker': 'o' if 'cascade' in group_key else 's',
+            'linestyle': '-' if 'cascade' in group_key else '--'
+        }
     )
 
     ax.set_title("Logical Error Rate vs Physical Error Rate")
@@ -24,9 +27,7 @@ def draw_and_save_plot(stats: List[sinter.TaskStats], save_path: str = None):
     ax.set_yscale('log')
     ax.grid(True, which='both', linestyle='--', alpha=0.7)
     
-    # Generate legend based on unique distances
-    distances = sorted(list(set([stat.json_metadata['d'] for stat in stats])))
-    ax.legend([f"Distance {d}" for d in distances])
+    ax.legend()
     
     
     plt.tight_layout()
