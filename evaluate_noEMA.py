@@ -45,7 +45,7 @@ class CascadeSinterDecoder(sinter.Decoder):
         self.model = SurfaceCascade(
             distance=distance,
             rounds=self.T,
-            hidden_dim=128, # Updated to 128 to match train_multi_gpu.py
+            hidden_dim=64, # Updated to 128 to match train_multi_gpu.py
             depth=distance,
             data_qubit_mask=data_qubit_mask,
             logical_masks=logical_masks,
@@ -121,7 +121,7 @@ class CascadeSinterDecoder(sinter.Decoder):
 
 
 def evaluate_model():
-    target_distance = 7
+    target_distance = 11
     model_path = f"checkpoints/cascade_d{target_distance}.pth"
     
     if not os.path.exists(model_path):
@@ -151,8 +151,6 @@ def evaluate_model():
         2e-3,   # 0.002
         1e-3,   # 0.001
         5e-4,   # 0.0005
-        2e-4,   # 0.0002
-        1e-4,   # 0.0001
         
     ]
     
@@ -170,12 +168,12 @@ def evaluate_model():
     
     # 3. Run Sinter Collect with our custom decoder
     stats = sinter.collect(
-        num_workers=1, # Neural network batching is done internally, so 1 worker is safer for GPU memory
+        num_workers=2, # Neural network batching is done internally, so 1 worker is safer for GPU memory
         tasks=tasks,
         decoders=['my_cascade'],
         custom_decoders={'my_cascade': my_decoder},
-        max_shots=1_000_000,
-        max_errors=1000,
+        max_shots=10_000_000,
+        max_errors=100,
         print_progress=True
     )
     
