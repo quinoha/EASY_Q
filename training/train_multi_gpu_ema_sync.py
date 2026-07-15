@@ -137,6 +137,27 @@ class Muon(torch.optim.Optimizer):
                 p.data.add_(g_out.view_as(p), alpha=-scale)
 
 
+class EMA:
+    def __init__(self, model, decay=0.9998):
+        self.decay = decay
+        self.model = model
+        self.shadow = {}
+        for name, p in self.model.named_parameters():
+            if p.requires_grad:
+                self.shadow[name] = p.data.clone().detach()
+
+    @torch.no_grad()
+    def update(self):
+        for name, p in self.model.named_parameters():
+            if p.requires_grad:
+                self.shadow[name].mul_(self.decay).add_(p.data, alpha=1.0 - self.decay)
+
+    def copy_to(self, model):
+        state_dict = model.state_dict()
+        for name, p in self.shadow.items():
+            state_dict[name].copy_(p)
+        model.load_state_dict(state_dict)
+
 
 def train_model(distance: int, p_start: float, p_target: float, total_steps: int = 80000, batch_size: int = 3328, lr: float = 1e-3):
     device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
@@ -209,7 +230,10 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     # 3. Training Loop
     print("Starting training...")
     model.train()
-    # Training Loop without EMA
+    
+    # Initialize EMA (Exponential Moving Average)
+    ema = EMA(model, decay=0.9998)
+    
     running_loss = 0.0
     running_acc = 0.0
     arr_loss = []
@@ -271,6 +295,9 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
         optimizer_muon.step()
         optimizer_adamw.step()
         
+        # Update EMA parameters after optimizers
+        ema.update()
+        
         running_loss += loss.item()
         
         # Accuracy (Noah)
@@ -299,9 +326,28 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     save_path = os.path.join(checkpoint_dir, f"cascade_d{distance}_H{hidden_dim}.pth")
     
     # Extract original model from DataParallel wrapper if necessary
-    model_state = model.module.state_dict() if isinstance(model, nn.DataParallel) else model.state_dict()
+    # Apply EMA weights before saving (Paper: "report metrics using EMA weights only")
+    ema_model = copy.deepcopy(model)
+    ema.copy_to(ema_model)
+    
+    # --- IMPORTANT: Sync BatchNorm statistics with EMA weights ---
+    print("Updating BatchNorm statistics for EMA weights...")
+    ema_model.train() # Must be in train mode to update running_mean and running_var
+    with torch.no_grad():
+        for _ in range(50): # Recompute stats over ~160,000 samples (50 batches)
+            detectors, _ = sampler.sample(shots=batch_size, separate_observables=True)
+            inputs = torch.from_numpy(detectors.astype(np.float32)).to(device)
+            b_sz = inputs.size(0)
+            detections = torch.zeros(b_sz, T, H, W, device=device, dtype=torch.bool)
+            detections[:, mapping[:, 0], mapping[:, 1], mapping[:, 2]] = inputs > 0
+            syndrome_idx = syndrome_indices_from_detections(detections, ancilla_mask)
+            syndrome_idx = torch.clamp(syndrome_idx, min=0, max=2)
+            _ = ema_model(syndrome_idx)
+    ema_model.eval()
+    
+    model_state = ema_model.module.state_dict() if isinstance(ema_model, nn.DataParallel) else ema_model.state_dict()
     torch.save(model_state, save_path)
-    print(f"Training complete! Model saved to {save_path}")
+    print(f"Training complete! EMA Model saved to {save_path}")
     
     
     # ================== Plotting loss ==================
