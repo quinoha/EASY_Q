@@ -28,7 +28,7 @@ class CascadeSinterDecoder(sinter.Decoder):
     """
     Custom Sinter Decoder that uses our trained PyTorch Cascade model.
     """
-    def __init__(self, distance: int, model_path: str):
+    def __init__(self, distance: int, model_path: str, H_dim: int):
         self.distance = distance
         self.device = torch.device("cuda" if torch.cuda.is_available() else "cpu")
         print(f"Initializing CascadeSinterDecoder on {self.device}")
@@ -45,7 +45,7 @@ class CascadeSinterDecoder(sinter.Decoder):
         self.model = SurfaceCascade(
             distance=distance,
             rounds=self.T,
-            hidden_dim=32,
+            hidden_dim=H_dim,
             depth=distance,
             data_qubit_mask=data_qubit_mask,
             logical_masks=logical_masks,
@@ -121,15 +121,16 @@ class CascadeSinterDecoder(sinter.Decoder):
 
 
 def evaluate_model():
-    target_distance = 9
-    model_path = f"checkpoints/cascade_d{target_distance}.pth"
+    target_distance = 11
+    hidden_dim = 128
+    model_path = f"checkpoints/cascade_d{target_distance}_H{hidden_dim}.pth"
     
     if not os.path.exists(model_path):
         print(f"Error: Model weights not found at {model_path}. Please train the model first.")
         return
 
     # 1. Create our custom decoder instance
-    my_decoder = CascadeSinterDecoder(distance=target_distance, model_path=model_path)
+    my_decoder = CascadeSinterDecoder(distance=target_distance, model_path=model_path, H_dim=hidden_dim)
     
     # 2. Define simulation tasks
     # For a fair evaluation, we test on unseen data at various error rates
@@ -167,28 +168,28 @@ def evaluate_model():
     
     # 3. Run Sinter Collect with our custom decoder
     stats_cascade = sinter.collect(
-        num_workers=1, # Neural network batching is done internally, so 1 worker is safer for GPU memory
+        num_workers=2, # Neural network batching is done internally, so 1 worker is safer for GPU memory
         tasks=tasks,
         decoders=['my_cascade'],
         custom_decoders={'my_cascade': my_decoder},
-        max_shots=100_000,
-        max_errors=1000,
+        max_shots=10_000_000,
+        max_errors=100,
         print_progress=True
     )
     
     stats_pymatching = sinter.collect(
-        num_workers=1,
+        num_workers=2,
         tasks=tasks,
         decoders=['pymatching'],
-        max_shots=100_000,
-        max_errors=1000,
+        max_shots=10_000_000,
+        max_errors=100,
         print_progress=True
     )
     
     # 4. Draw and save plot
     os.makedirs("plotting/output", exist_ok=True)
     all_stats = stats_cascade + stats_pymatching
-    draw_and_save_plot(all_stats, save_path=f"plotting/output/cascade_evaluation_d{target_distance}.png")
+    draw_and_save_plot(all_stats, save_path=f"plotting/output/cascade_evaluation_d{target_distance}_H{hidden_dim}.png")
 
 if __name__ == "__main__":
     evaluate_model()
