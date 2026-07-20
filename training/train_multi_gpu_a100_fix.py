@@ -254,7 +254,7 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
         syndrome_idx = syndrome_indices_from_detections(detections, ancilla_mask)
         
         # --- A100 DataParallel Bug Fix ---
-        syndrome_idx = syndrome_idx.contiguous()
+        # DataParallel split can cause uninitialized memory/out of bounds indices in embedding layer
         syndrome_idx = torch.clamp(syndrome_idx, 0, 2)
         
         optimizer_muon.zero_grad()
