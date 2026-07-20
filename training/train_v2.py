@@ -147,10 +147,11 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     logical_masks = logical_masks[0:1]
 
     # 2. Initialize Model
+    hidden_dim = 128
     model = SurfaceCascade(
         distance=distance,
         rounds=T,
-        hidden_dim=32,
+        hidden_dim=hidden_dim,
         depth=distance,
         data_qubit_mask=data_qubit_mask,
         logical_masks=logical_masks,
@@ -255,12 +256,12 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     # ================== Saving trained model ==================
     checkpoint_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
-    save_path = os.path.join(checkpoint_dir, f"cascade_d{distance}_v2.pth")
+    save_path = os.path.join(checkpoint_dir, f"cascade_d{distance}_H{hidden_dim}.pth")
     torch.save(model.state_dict(), save_path)
     print(f"Training complete! Model saved to {save_path}")
     
     # ================== Plotting loss & Accuracy ==================
-    plot_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "plots")
+    plot_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "plots/loss_V2")
     os.makedirs(plot_dir, exist_ok=True)
     fig, ax = plt.subplots(figsize=(8, 6))
     
@@ -273,16 +274,16 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     ax.grid(True, which="both", linestyle='--', alpha=0.7)
     
     ax.legend()
-    plot_path = os.path.join(plot_dir, f"loss_plot_d{distance}_v2.png")
+    plot_path = os.path.join(plot_dir, f"loss_plot_d{distance}_H{hidden_dim}.png")
     plt.savefig(plot_path)
     print(f"plot saved to {plot_path}")
     
     # plt.show() # Commented out to prevent blocking in non-interactive environments
 
 if __name__ == "__main__":
-    TARGET_DISTANCE = 7
+    TARGET_DISTANCE = 9
     P_START = 0.001
-    P_TARGET = 0.01
+    P_TARGET = 0.007
     
     # Curriculum learning with batch size 3328
-    train_model(distance=TARGET_DISTANCE, p_start=P_START, p_target=P_TARGET, total_steps=80000, batch_size=3328)
+    train_model(distance=TARGET_DISTANCE, p_start=P_START, p_target=P_TARGET, total_steps=40000, batch_size=3328)

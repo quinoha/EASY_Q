@@ -1,6 +1,6 @@
 import os
 # --- Specify GPUs to use ---
-os.environ["CUDA_VISIBLE_DEVICES"] = "4,5,6,7"
+os.environ["CUDA_VISIBLE_DEVICES"] = "6,7"
 import copy
 import sys
 import numpy as np
@@ -188,7 +188,7 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     logical_masks = logical_masks[1:2]
 
     # 2. Initialize Model
-    hidden_dim = 64
+    hidden_dim = 128
     model = SurfaceCascade(
         distance=distance,
         rounds=T,          # Model expects rounds to match the temporal dimension of our grid
@@ -238,8 +238,8 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     running_acc = 0.0
     arr_loss = []
     
-    warmup_steps = int(total_steps * 0.02)
-    anneal_steps = int(total_steps * 0.08)
+    warmup_steps = int(total_steps * 0.08)
+    anneal_steps = int(total_steps * 0.04)
     current_p = p_start
     
     for step in tqdm(range(total_steps)):
@@ -323,7 +323,7 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     # ================== Saving trained model ==================
     checkpoint_dir = os.path.join(os.path.dirname(os.path.dirname(os.path.abspath(__file__))), "checkpoints")
     os.makedirs(checkpoint_dir, exist_ok=True)
-    save_path = os.path.join(checkpoint_dir, f"cascade_d{distance}_H{hidden_dim}.pth")
+    save_path = os.path.join(checkpoint_dir, f"cascade_d{distance}_H{hidden_dim}_ema.pth")
     
     # Extract original model from DataParallel wrapper if necessary
     # Apply EMA weights before saving (Paper: "report metrics using EMA weights only")
@@ -367,16 +367,16 @@ def train_model(distance: int, p_start: float, p_target: float, total_steps: int
     ax.grid(True, which="both", linestyle='--', alpha=0.7)
     
     ax.legend()
-    plot_path = os.path.join(plot_dir, f"loss_plot_d{distance}_H{hidden_dim}.png")
+    plot_path = os.path.join(plot_dir, f"loss_plot_d{distance}_H{hidden_dim}_ema.png")
     plt.savefig(plot_path)
     print(f"plot saved to {plot_path}")
     
     plt.show()
 
 if __name__ == "__main__":
-    TARGET_DISTANCE = 11
+    TARGET_DISTANCE = 9
     P_START = 0.001
-    P_TARGET = 0.01
+    P_TARGET = 0.007
     
     # Curriculum learning with batch size 3328
     train_model(distance=TARGET_DISTANCE, p_start=P_START, p_target=P_TARGET, total_steps=20000, batch_size=3328)
