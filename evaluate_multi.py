@@ -121,9 +121,9 @@ class CascadeSinterDecoder(sinter.Decoder):
 
 
 def evaluate_model():
-    target_distance = 11
-    hidden_dim = 128
-    model_path = f"checkpoints/cascade_d{target_distance}_H{hidden_dim}.pth"
+    target_distance = 7
+    hidden_dim = 256
+    model_path = f"checkpoints/cascade_d{target_distance}_H{hidden_dim}_ddp_ema.pth"
     
     if not os.path.exists(model_path):
         print(f"Error: Model weights not found at {model_path}. Please train the model first.")
@@ -189,7 +189,7 @@ def evaluate_model():
     # 4. Draw and save plot
     os.makedirs("plotting/output", exist_ok=True)
     all_stats = stats_cascade + stats_pymatching
-    draw_and_save_plot(all_stats, save_path=f"plotting/output/cascade_evaluation_d{target_distance}_H{hidden_dim}.png")
+    draw_and_save_plot(all_stats, save_path=f"plotting/output/cascade_evaluation_d{target_distance}_H{hidden_dim}_ddp.png")
 
 if __name__ == "__main__":
     evaluate_model()
